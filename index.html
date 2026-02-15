@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NovelForge — AIと書く。挿絵も、公開も、全自動。</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@400;700;900&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#06060c;
+  --bg2:#0c0c14;
+  --bg3:#121220;
+  --surface:#18182a;
+  --ink:#c8b8ff;
+  --ink-dim:#7a6aaa;
+  --ink-glow:rgba(200,184,255,.12);
+  --warm:#f5c76e;
+  --warm-dim:#b08830;
+  --green:#6ee8b0;
+  --rose:#f08080;
+  --text:#e6e2da;
+  --text2:#8e8a82;
+  --serif:'Zen Old Mincho',Georgia,serif;
+  --sans:'Outfit',sans-serif;
+  --mono:'JetBrains Mono',monospace;
+}
+html{scroll-behavior:smooth;font-size:16px}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.75;overflow-x:hidden}
+body::before{
+  content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
+  background:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity:.3;
+}
+::selection{background:var(--ink);color:var(--bg)}
+
+/* animations */
+.reveal{opacity:0;transform:translateY(32px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1)}
+.reveal.visible{opacity:1;transform:translateY(0)}
+.d1{transition-delay:.1s}.d2{transition-delay:.2s}.d3{transition-delay:.3s}.d4{transition-delay:.4s}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes fadeSlide{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
+@keyframes glow{0%,100%{opacity:.6}50%{opacity:1}}
+
+/* ═══ NAV ═══ */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  padding:14px 28px;display:flex;justify-content:space-between;align-items:center;
+  background:rgba(6,6,12,.7);backdrop-filter:blur(20px);
+  border-bottom:1px solid rgba(255,255,255,.03);transition:all .3s;
+}
+nav.scrolled{background:rgba(6,6,12,.95);box-shadow:0 4px 24px rgba(0,0,0,.5)}
+.nav-logo{font-family:var(--serif);font-weight:900;font-size:1.05rem;color:var(--ink);text-decoration:none}
+.nav-logo span{color:var(--text2);font-weight:400;font-size:.75rem;margin-left:8px;letter-spacing:.06em}
+.nav-r{display:flex;gap:20px;align-items:center}
+.nav-r a{color:var(--text2);text-decoration:none;font-size:.82rem;transition:color .3s}
+.nav-r a:hover{color:var(--text)}
+.nav-cta{
+  padding:9px 22px!important;border-radius:6px;font-weight:600!important;
+  background:linear-gradient(135deg,var(--ink),#a090e0)!important;
+  color:var(--bg)!important;font-size:.82rem!important;
+  box-shadow:0 2px 14px rgba(200,184,255,.2);transition:all .3s!important;
+}
+.nav-cta:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(200,184,255,.35)!important}
+
+/* ═══ HERO ═══ */
+.hero{
+  min-height:100vh;display:flex;flex-direction:column;
+  justify-content:center;align-items:center;text-align:center;
+  padding:100px 28px 80px;position:relative;overflow:hidden;
+}
+.hero::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 45% 35% at 50% 40%,rgba(200,184,255,.07) 0%,transparent 70%),
+    radial-gradient(ellipse 30% 40% at 25% 75%,rgba(245,199,110,.04) 0%,transparent 60%),
+    radial-gradient(ellipse 20% 30% at 80% 25%,rgba(200,184,255,.04) 0%,transparent 50%);
+}
+/* floating pen icon */
+.hero-icon{
+  font-size:3rem;margin-bottom:24px;display:block;
+  animation:float 4s ease-in-out infinite,fadeSlide .8s ease-out both;
+}
+.hero-eyebrow{
+  font-size:.82rem;color:var(--ink);letter-spacing:.1em;margin-bottom:20px;
+  display:flex;align-items:center;gap:10px;
+  animation:fadeSlide .8s ease-out .1s both;
+}
+.hero-eyebrow::before,.hero-eyebrow::after{content:'';width:24px;height:1px;background:var(--ink-dim)}
+
+.hero h1{
+  font-family:var(--serif);font-weight:900;
+  font-size:clamp(2rem,5vw,3.8rem);
+  line-height:1.2;letter-spacing:-.02em;max-width:800px;
+  animation:fadeSlide .9s ease-out .2s both;
+}
+.hero h1 .accent{
+  background:linear-gradient(135deg,var(--ink),var(--warm),var(--ink));
+  background-size:200% 200%;
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;animation:glow 4s ease-in-out infinite;
+}
+.hero h1 .line2{display:block;margin-top:4px}
+
+.hero-sub{
+  font-size:clamp(.95rem,1.8vw,1.1rem);
+  color:var(--text2);max-width:540px;margin-top:20px;line-height:1.9;
+  animation:fadeSlide .9s ease-out .4s both;
+}
+.hero-sub strong{color:var(--text);font-weight:500}
+
+.hero-chips{
+  display:flex;gap:10px;margin-top:28px;flex-wrap:wrap;justify-content:center;
+  animation:fadeSlide .9s ease-out .55s both;
+}
+.chip{
+  padding:5px 14px;border-radius:100px;font-size:.76rem;
+  background:rgba(200,184,255,.06);border:1px solid rgba(200,184,255,.12);
+  color:var(--ink);letter-spacing:.03em;
+}
+
+.hero-ctas{
+  display:flex;gap:14px;margin-top:36px;flex-wrap:wrap;justify-content:center;
+  animation:fadeSlide .9s ease-out .7s both;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:14px 30px;border-radius:8px;
+  font-family:var(--sans);font-size:.9rem;font-weight:600;
+  text-decoration:none;cursor:pointer;border:none;transition:all .3s;
+}
+.btn-ink{
+  background:linear-gradient(135deg,var(--ink),#a88ee8);
+  color:var(--bg);box-shadow:0 4px 20px rgba(200,184,255,.25);
+}
+.btn-ink:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(200,184,255,.35)}
+.btn-ghost{background:rgba(255,255,255,.04);color:var(--text);border:1px solid rgba(255,255,255,.08)}
+.btn-ghost:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.15)}
+
+/* scroll */
+.scroll-h{
+  position:absolute;bottom:28px;left:50%;transform:translateX(-50%);
+  font-size:.68rem;color:var(--text2);letter-spacing:.15em;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  animation:fadeSlide .9s ease-out 1s both;
+}
+.scroll-h::after{content:'';width:1px;height:32px;background:linear-gradient(to bottom,var(--text2),transparent);animation:glow 2s infinite}
+
+/* ═══ SECTIONS COMMON ═══ */
+section{padding:100px 28px}
+.container{max-width:1060px;margin:0 auto}
+.label{font-family:var(--mono);font-size:.68rem;letter-spacing:.18em;color:var(--ink);margin-bottom:10px}
+.stitle{font-family:var(--serif);font-weight:700;font-size:clamp(1.4rem,3vw,2.1rem);line-height:1.35;margin-bottom:14px}
+.sdesc{color:var(--text2);max-width:520px;font-size:.95rem;margin-bottom:44px;line-height:1.8}
+
+/* ═══ BEFORE / AFTER ═══ */
+.ba{background:var(--bg2);border-top:1px solid rgba(255,255,255,.03)}
+.ba-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:0;align-items:stretch}
+.ba-col{padding:32px 28px}
+.ba-col h3{font-family:var(--serif);font-weight:700;font-size:1.05rem;margin-bottom:20px;display:flex;align-items:center;gap:8px}
+.ba-before h3{color:var(--rose)}
+.ba-after h3{color:var(--green)}
+.ba-list{list-style:none;display:flex;flex-direction:column;gap:12px}
+.ba-item{
+  display:flex;gap:10px;align-items:flex-start;font-size:.88rem;
+  line-height:1.6;color:var(--text2);
+}
+.ba-item .ic{flex-shrink:0;margin-top:3px;font-size:.9rem}
+.ba-before .ic{color:var(--rose)}
+.ba-after .ic{color:var(--green)}
+.ba-divider{
+  width:1px;background:linear-gradient(to bottom,transparent,rgba(200,184,255,.2),transparent);
+  margin:0 8px;position:relative;
+}
+.ba-divider::after{
+  content:'→';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:var(--bg2);color:var(--ink);font-size:1.2rem;padding:8px 0;
+}
+
+/* ═══ WORKFLOW ═══ */
+.workflow{border-top:1px solid rgba(255,255,255,.03)}
+.wf-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:44px}
+.wf-step{
+  padding:28px 24px;border-radius:14px;
+  background:var(--surface);border:1px solid rgba(255,255,255,.05);
+  text-align:center;transition:all .4s;position:relative;
+}
+.wf-step:hover{border-color:rgba(200,184,255,.15);transform:translateY(-3px)}
+.wf-num{font-family:var(--mono);font-size:.65rem;color:var(--ink-dim);letter-spacing:.1em;margin-bottom:8px}
+.wf-icon{font-size:2rem;margin-bottom:10px;display:block}
+.wf-title{font-family:var(--serif);font-weight:700;font-size:.95rem;margin-bottom:6px}
+.wf-desc{font-size:.82rem;color:var(--text2);line-height:1.7}
+.wf-arrow{
+  position:absolute;right:-20px;top:50%;transform:translateY(-50%);
+  color:var(--ink-dim);font-size:1.2rem;z-index:2;
+}
+
+/* ═══ FEATURES ═══ */
+.features{background:var(--bg2);border-top:1px solid rgba(255,255,255,.03)}
+.feat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:44px}
+.feat-card{
+  padding:26px 24px;border-radius:12px;
+  background:var(--bg);border:1px solid rgba(255,255,255,.05);
+  display:flex;gap:16px;align-items:flex-start;
+  transition:all .4s;
+}
+.feat-card:hover{border-color:rgba(200,184,255,.12);transform:translateY(-2px)}
+.feat-icon{font-size:1.4rem;flex-shrink:0;margin-top:2px}
+.feat-title{font-family:var(--serif);font-weight:700;font-size:.92rem;margin-bottom:4px}
+.feat-desc{font-size:.82rem;color:var(--text2);line-height:1.7}
+
+/* ═══ USE CASES ═══ */
+.usecases{border-top:1px solid rgba(255,255,255,.03)}
+.uc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:44px}
+.uc-card{
+  padding:28px 22px;border-radius:14px;
+  background:var(--surface);border:1px solid rgba(255,255,255,.05);
+  transition:all .4s;
+}
+.uc-card:hover{border-color:rgba(200,184,255,.12)}
+.uc-icon{font-size:1.8rem;margin-bottom:12px;display:block}
+.uc-title{font-family:var(--serif);font-weight:700;font-size:1rem;margin-bottom:8px}
+.uc-desc{font-size:.84rem;color:var(--text2);line-height:1.7;margin-bottom:14px}
+.uc-example{
+  padding:10px 14px;border-radius:6px;
+  background:rgba(200,184,255,.04);border:1px solid rgba(200,184,255,.08);
+  font-size:.78rem;color:var(--ink);line-height:1.6;
+}
+
+/* ═══ NUMBERS ═══ */
+.numbers{background:var(--bg2);border-top:1px solid rgba(255,255,255,.03);text-align:center}
+.num-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:48px}
+.num-card{
+  padding:28px 16px;border-radius:12px;
+  background:var(--bg);border:1px solid rgba(255,255,255,.04);
+}
+.num-val{
+  font-family:var(--mono);font-weight:700;font-size:clamp(1.6rem,3vw,2.2rem);
+  background:linear-gradient(135deg,var(--ink),var(--warm));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.num-label{font-size:.82rem;color:var(--text2);margin-top:6px}
+
+/* ═══ TESTIMONIAL STYLE ═══ */
+.voices{border-top:1px solid rgba(255,255,255,.03)}
+.voice-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:44px}
+.voice-card{
+  padding:26px 22px;border-radius:12px;
+  background:var(--surface);border:1px solid rgba(255,255,255,.05);
+}
+.voice-text{font-size:.88rem;color:var(--text);line-height:1.8;font-style:italic;margin-bottom:14px}
+.voice-who{font-size:.78rem;color:var(--text2);display:flex;align-items:center;gap:8px}
+.voice-who::before{content:'';width:20px;height:1px;background:var(--ink-dim)}
+
+/* ═══ FAQ ═══ */
+.faq{background:var(--bg2);border-top:1px solid rgba(255,255,255,.03)}
+.faq-list{max-width:680px;margin:0 auto;display:flex;flex-direction:column;gap:4px}
+.faq-item{border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,.04);background:var(--bg)}
+.faq-q{padding:16px 22px;cursor:pointer;font-weight:600;font-size:.9rem;display:flex;justify-content:space-between;align-items:center;transition:background .3s}
+.faq-q:hover{background:rgba(255,255,255,.02)}
+.faq-q .arr{color:var(--text2);transition:transform .3s;font-size:.75rem}
+.faq-item.open .faq-q .arr{transform:rotate(180deg)}
+.faq-a{max-height:0;overflow:hidden;transition:max-height .4s ease}
+.faq-a-inner{padding:0 22px 18px;font-size:.86rem;color:var(--text2);line-height:1.8}
+
+/* ═══ CTA ═══ */
+.cta{
+  text-align:center;padding:130px 28px;position:relative;overflow:hidden;
+  border-top:1px solid rgba(255,255,255,.03);
+}
+.cta::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 45% 45% at 50% 50%,rgba(200,184,255,.08) 0%,transparent 70%);
+}
+.cta *{position:relative}
+.cta h2{font-family:var(--serif);font-weight:900;font-size:clamp(1.5rem,3.5vw,2.4rem);line-height:1.35;margin-bottom:14px}
+.cta h2 .accent{color:var(--ink)}
+.cta .sub{color:var(--text2);font-size:1rem;max-width:460px;margin:0 auto 36px;line-height:1.8}
+.cta-btns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:40px}
+.cta-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;max-width:520px;margin:0 auto}
+.cta-card{
+  padding:20px 18px;border-radius:10px;text-align:left;text-decoration:none;color:inherit;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);transition:all .3s;
+}
+.cta-card:hover{border-color:var(--ink-dim);background:rgba(200,184,255,.04)}
+.cta-card-icon{font-size:1.1rem;margin-bottom:4px;display:block}
+.cta-card-title{font-weight:600;font-size:.86rem;margin-bottom:3px}
+.cta-card-desc{font-size:.76rem;color:var(--text2);line-height:1.6}
+.cta-mail{margin-top:28px;font-size:.86rem;color:var(--text2)}
+.cta-mail a{color:var(--ink);text-decoration:none;font-weight:600}
+.cta-mail a:hover{text-decoration:underline}
+
+footer{padding:28px;text-align:center;font-size:.72rem;color:var(--text2);border-top:1px solid rgba(255,255,255,.03)}
+
+/* ═══ RESPONSIVE ═══ */
+@media(max-width:900px){
+  .ba-grid{grid-template-columns:1fr;gap:0}
+  .ba-divider{width:100%;height:1px;margin:0;background:linear-gradient(90deg,transparent,rgba(200,184,255,.2),transparent)}
+  .ba-divider::after{top:auto;left:50%;transform:translateX(-50%);padding:0 8px;content:'↓'}
+  .wf-steps{grid-template-columns:1fr}.wf-arrow{display:none}
+  .feat-grid{grid-template-columns:1fr}
+  .uc-grid{grid-template-columns:1fr}
+  .num-grid{grid-template-columns:1fr 1fr}
+  .voice-grid{grid-template-columns:1fr}
+  .cta-cards{grid-template-columns:1fr}
+}
+@media(max-width:600px){
+  .num-grid{grid-template-columns:1fr}
+  .hero-chips{flex-direction:column;align-items:center}
+  nav{padding:10px 16px}
+  .nav-r a:not(.nav-cta){display:none}
+}
+</style>
+</head>
+<body>
+
+<nav id="nav">
+  <a href="#" class="nav-logo">NovelForge <span>for Creators</span></a>
+  <div class="nav-r">
+    <a href="#workflow">使い方</a>
+    <a href="#features">機能</a>
+    <a href="#faq">FAQ</a>
+    <a href="https://forms.gle/vxeFuYFUSnSQSH4P9" target="_blank" rel="noopener" class="nav-cta">β版に申し込む</a>
+  </div>
+</nav>
+
+<!-- ═══ HERO ═══ -->
+<section class="hero">
+  <span class="hero-icon">✒️</span>
+  <div class="hero-eyebrow">Web小説作家 ・ 同人作家 ・ 個人出版クリエイターへ</div>
+  <h1>
+    <span class="accent">設定を書いたら、</span>
+    <span class="line2">挿絵付き小説が<span class="accent">丸ごとできる。</span></span>
+  </h1>
+  <p class="hero-sub">
+    キャラ設定と章構成をYAMLに書くだけ。<br>
+    <strong>テキスト生成・挿絵・Webリーダー・公開</strong>まで全自動。<br>
+    APIの課金は一切なし。あなたのPCだけで完結します。
+  </p>
+  <div class="hero-chips">
+    <span class="chip">💰 API課金ゼロ</span>
+    <span class="chip">👤 キャラの顔が全章一致</span>
+    <span class="chip">📖 続編もワンクリック</span>
+    <span class="chip">🌐 Web公開まで自動</span>
+  </div>
+  <div class="hero-ctas">
+    <a href="https://forms.gle/vxeFuYFUSnSQSH4P9" target="_blank" rel="noopener" class="btn btn-ink">β版に申し込む →</a>
+    <a href="#before-after" class="btn btn-ghost">何が変わるか見る</a>
+  </div>
+  <div class="scroll-h"><span>SCROLL</span></div>
+</section>
+
+<!-- ═══ BEFORE / AFTER ═══ -->
+<section class="ba" id="before-after">
+  <div class="container">
+    <div class="reveal">
+      <div class="label" style="text-align:center">BEFORE → AFTER</div>
+      <div class="stitle" style="text-align:center;max-width:500px;margin:0 auto 40px">NovelForgeを使うと、<br>あなたの創作はこう変わる</div>
+    </div>
+    <div class="ba-grid reveal">
+      <div class="ba-col ba-before">
+        <h3><span>😰</span> 今まで</h3>
+        <ul class="ba-list">
+          <li class="ba-item"><span class="ic">✕</span><span>ChatGPTに1章ずつ依頼してコピペ整形。1話に2時間。</span></li>
+          <li class="ba-item"><span class="ic">✕</span><span>画像生成のたびにプロンプト手書き。キャラの顔がバラバラ。</span></li>
+          <li class="ba-item"><span class="ic">✕</span><span>5章を超えるとLLMが設定を忘れて矛盾だらけ。</span></li>
+          <li class="ba-item"><span class="ic">✕</span><span>API課金が月1万円超え。長編シリーズは怖くて書けない。</span></li>
+          <li class="ba-item"><span class="ic">✕</span><span>HTML化、公開、全部手作業。本文を書く以外の時間が多すぎる。</span></li>
+        </ul>
+      </div>
+      <div class="ba-divider"></div>
+      <div class="ba-col ba-after">
+        <h3><span>✨</span> NovelForge導入後</h3>
+        <ul class="ba-list">
+          <li class="ba-item"><span class="ic">✓</span><span>YAML設定を書いたらコマンド1つ。10章が30分で生成。</span></li>
+          <li class="ba-item"><span class="ic">✓</span><span>キャラの外見タグを1回定義すれば全章自動適用。顔ブレなし。</span></li>
+          <li class="ba-item"><span class="ic">✓</span><span>前章要約の自動引き継ぎ＋伏線追跡で、整合性を自動維持。</span></li>
+          <li class="ba-item"><span class="ic">✓</span><span>完全ローカル実行。月額¥0。100章書いても追加コストなし。</span></li>
+          <li class="ba-item"><span class="ic">✓</span><span>挿絵付きWebリーダー自動生成→GitHub Pagesに即公開。</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ WORKFLOW ═══ -->
+<section class="workflow" id="workflow">
+  <div class="container">
+    <div class="reveal">
+      <div class="label">HOW IT WORKS</div>
+      <div class="stitle">あなたがやることは3つだけ</div>
+      <div class="sdesc">プログラミングの知識は不要。YAMLファイルの編集ができれば始められます。</div>
+    </div>
+    <div class="wf-steps">
+      <div class="wf-step reveal">
+        <div class="wf-num">STEP 01</div>
+        <span class="wf-icon">📝</span>
+        <div class="wf-title">世界観を書く</div>
+        <div class="wf-desc">キャラクター・世界観・章構成をYAMLに定義。テンプレート付きなので、穴埋め感覚で作れます。</div>
+        <span class="wf-arrow">→</span>
+      </div>
+      <div class="wf-step reveal d1">
+        <div class="wf-num">STEP 02</div>
+        <span class="wf-icon">▶️</span>
+        <div class="wf-title">実行する</div>
+        <div class="wf-desc"><code style="color:var(--ink);font-size:.8rem">python novel_pipeline.py</code><br>あとはAIが全章テキスト＋挿絵＋HTMLを自動生成。</div>
+        <span class="wf-arrow">→</span>
+      </div>
+      <div class="wf-step reveal d2">
+        <div class="wf-num">STEP 03</div>
+        <span class="wf-icon">🌐</span>
+        <div class="wf-title">公開される</div>
+        <div class="wf-desc">挿絵付きWebリーダーがGitHub Pagesに自動デプロイ。URLをSNSに貼るだけ。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FEATURES ═══ -->
+<section class="features" id="features">
+  <div class="container">
+    <div class="reveal">
+      <div class="label">FEATURES</div>
+      <div class="stitle">「使えるAI」と「使えないAI」の差</div>
+      <div class="sdesc">AI小説が実用にならない原因を、ひとつずつ潰しています。</div>
+    </div>
+    <div class="feat-grid">
+      <div class="feat-card reveal">
+        <span class="feat-icon">👤</span>
+        <div>
+          <div class="feat-title">キャラの顔が全章一致</div>
+          <div class="feat-desc">SD用外見タグをYAMLに1回書くだけ。年齢→外見タグも自動補完。「57歳の主人公が10代に描かれる」を根絶。</div>
+        </div>
+      </div>
+      <div class="feat-card reveal d1">
+        <span class="feat-icon">🧠</span>
+        <div>
+          <div class="feat-title">長編でも矛盾しない</div>
+          <div class="feat-desc">前章要約の自動引き継ぎ。伏線の設置/回収・キャラ状態をJSON追跡。20章超えても「あれ、この人死んだはず」にならない。</div>
+        </div>
+      </div>
+      <div class="feat-card reveal">
+        <span class="feat-icon">🛡️</span>
+        <div>
+          <div class="feat-title">暴走を自動修復</div>
+          <div class="feat-desc">LLMの繰り返しループを自動検出→切り詰め→リトライ。日本語が突然中国語になる問題も自動除去。</div>
+        </div>
+      </div>
+      <div class="feat-card reveal d1">
+        <span class="feat-icon">🔄</span>
+        <div>
+          <div class="feat-title">続編がワンクリック</div>
+          <div class="feat-desc">完成作品→LLM要約→続編YAML自動生成。「前作を読ませて続きを書かせる」がボタンひとつ。</div>
+        </div>
+      </div>
+      <div class="feat-card reveal">
+        <span class="feat-icon">💰</span>
+        <div>
+          <div class="feat-title">完全無料で動く</div>
+          <div class="feat-desc">Ollama（ローカルLLM）+ Stable Diffusion WebUI。外部APIゼロ。100章書いても追加コストなし。あなたのPCだけで完結。</div>
+        </div>
+      </div>
+      <div class="feat-card reveal d1">
+        <span class="feat-icon">🎙️</span>
+        <div>
+          <div class="feat-title">読み上げ対応リーダー</div>
+          <div class="feat-desc">自動生成HTMLはWeb Speech API対応。iPhone、Android、PCで読み上げ可能。通勤中に自作小説を聴ける。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ USE CASES ═══ -->
+<section class="usecases">
+  <div class="container">
+    <div class="reveal">
+      <div class="label">USE CASES</div>
+      <div class="stitle">こんな使い方ができます</div>
+    </div>
+    <div class="uc-grid">
+      <div class="uc-card reveal">
+        <span class="uc-icon">📱</span>
+        <div class="uc-title">Web連載の高速化</div>
+        <div class="uc-desc">週1更新で精一杯だった連載を、AIの下書き＋自分で仕上げで週3-5更新に。読者を離さない更新頻度を実現。</div>
+        <div class="uc-example">💡 例：異世界ファンタジー10章を生成→自分の文体に直す→毎日更新</div>
+      </div>
+      <div class="uc-card reveal d1">
+        <span class="uc-icon">📚</span>
+        <div class="uc-title">同人誌・KDP出版</div>
+        <div class="uc-desc">挿絵付きの完成品が自動で出力。コミケや技術書典向け、Kindle出版向け、どちらにも使えるクオリティ。</div>
+        <div class="uc-example">💡 例：コミケ向けの外伝小説を3作品同時に準備</div>
+      </div>
+      <div class="uc-card reveal d2">
+        <span class="uc-icon">🔗</span>
+        <div class="uc-title">シリーズ展開</div>
+        <div class="uc-desc">前作を読み込み→続編設定を自動生成。キャラの外見は一致、世界観も引き継ぎ。1人でシリーズ10作を回せる。</div>
+        <div class="uc-example">💡 例：好評だった短編をワンクリックで全10巻シリーズに展開</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ NUMBERS ═══ -->
+<section class="numbers">
+  <div class="container">
+    <div class="reveal">
+      <div class="label">BY THE NUMBERS</div>
+      <div class="stitle">NovelForgeの実力</div>
+    </div>
+    <div class="num-grid">
+      <div class="num-card reveal">
+        <div class="num-val">30分</div>
+        <div class="num-label">10章の小説生成</div>
+      </div>
+      <div class="num-card reveal d1">
+        <div class="num-val">¥0</div>
+        <div class="num-label">月額コスト</div>
+      </div>
+      <div class="num-card reveal d2">
+        <div class="num-val">100%</div>
+        <div class="num-label">キャラ外見一致率</div>
+      </div>
+      <div class="num-card reveal d3">
+        <div class="num-val">1クリック</div>
+        <div class="num-label">続編生成</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ VOICES ═══ -->
+<section class="voices">
+  <div class="container">
+    <div class="reveal">
+      <div class="label">VOICES</div>
+      <div class="stitle">こんな人に使ってほしい</div>
+    </div>
+    <div class="voice-grid">
+      <div class="voice-card reveal">
+        <div class="voice-text">「書きたい話は山ほどあるのに、本業が忙しくて月1話がやっと。AIに下書きを任せて、自分は仕上げに集中したい」</div>
+        <div class="voice-who">兼業Web小説作家</div>
+      </div>
+      <div class="voice-card reveal d1">
+        <div class="voice-text">「ChatGPTで章ごとに書かせてたけど、5章超えるとキャラの性格がブレて全部手直し。それなら最初から自分で書いた方が早い」</div>
+        <div class="voice-who">AI小説に挫折した個人作家</div>
+      </div>
+      <div class="voice-card reveal d2">
+        <div class="voice-text">「コミケに毎回新刊出したいけど、挿絵の発注コストがキツい。AIで一貫した絵が付けられるなら最高」</div>
+        <div class="voice-who">同人小説サークル主宰</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FAQ ═══ -->
+<section class="faq" id="faq">
+  <div class="container">
+    <div class="reveal">
+      <div class="label">FAQ</div>
+      <div class="stitle">よくある質問</div>
+    </div>
+    <div class="faq-list reveal">
+      <div class="faq-item">
+        <div class="faq-q">必要なPCスペックは？<span class="arr">▼</span></div>
+        <div class="faq-a"><div class="faq-a-inner">NVIDIA GPU搭載PC（RTX 3060以上推奨、VRAM 8GB以上）。テキスト生成だけなら低スペックでも動きますが、画像生成にはGPUが必要です。WindowsでもLinuxでも動作します。</div></div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">プログラミングの知識は必要？<span class="arr">▼</span></div>
+        <div class="faq-a"><div class="faq-a-inner">不要です。YAMLファイルの編集（テキスト編集）ができれば始められます。導入時のOllama・SDのインストールだけコマンドラインを使いますが、手順書を用意しています。</div></div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">生成された文章のクオリティは？<span class="arr">▼</span></div>
+        <div class="faq-a"><div class="faq-a-inner">ローカルLLM（Qwen2.5 14B等）の生成なので「そのまま出版」レベルではありません。AIの下書き＋あなたの加筆修正で仕上げる「共作ワークフロー」を想定しています。品質自動制御（ループ・言語混在の検出除去）により、手直しの手間は大幅に減ります。</div></div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">生成した小説の著作権は？<span class="arr">▼</span></div>
+        <div class="faq-a"><div class="faq-a-inner">あなたに帰属します。完全ローカル実行のため、作品データが外部に送信されることはありません。OSSモデルを使用するため、API利用規約の制約もありません。商用利用・同人頒布・KDP出版、すべて自由です。</div></div>
+      </div>
+      <div class="faq-item">
+        <div class="faq-q">Mac（Apple Silicon）でも動く？<span class="arr">▼</span></div>
+        <div class="faq-a"><div class="faq-a-inner">Ollamaはmacネイティブ対応しているのでテキスト生成は問題なく動きます。SD WebUIのMac対応は進んでいますが、NVIDIA GPUほどの速度は出ません。画像生成をスキップして、テキストのみで使うことも可能です。</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CTA ═══ -->
+<section class="cta" id="contact">
+  <h2 class="reveal">
+    <span class="accent">書くのは、あなた。</span><br>
+    それ以外は、全部自動。
+  </h2>
+  <p class="sub reveal d1">β版への参加申し込み、質問、なんでもどうぞ。<br>個人クリエイターの方を優先でご案内しています。</p>
+  <div class="cta-btns reveal d2">
+    <a href="https://forms.gle/vxeFuYFUSnSQSH4P9" target="_blank" rel="noopener" class="btn btn-ink">📩 フォームから申し込む</a>
+    <a href="mailto:admin@wkjp.net" class="btn btn-ghost">✉ admin@wkjp.net にメール</a>
+  </div>
+  <div class="cta-cards reveal d3">
+    <a href="https://forms.gle/vxeFuYFUSnSQSH4P9" target="_blank" rel="noopener" class="cta-card">
+      <span class="cta-card-icon">✍️</span>
+      <div class="cta-card-title">β版に参加したい</div>
+      <div class="cta-card-desc">セットアップ支援付き。導入から最初の1作品生成まで一緒にやります。</div>
+    </a>
+    <a href="mailto:admin@wkjp.net" class="cta-card">
+      <span class="cta-card-icon">💬</span>
+      <div class="cta-card-title">まず質問したい</div>
+      <div class="cta-card-desc">自分の環境で動くか、どんな作品が作れるか、気軽にご相談ください。</div>
+    </a>
+  </div>
+  <div class="cta-mail reveal d4">
+    <p>メールでのお問い合わせ: <a href="mailto:admin@wkjp.net">admin@wkjp.net</a></p>
+  </div>
+</section>
+
+<footer>
+  <p>© 2026 NovelForge — 完全ローカルAI小説生成パイプライン</p>
+</footer>
+
+<script>
+const obs=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible')})},{threshold:.08,rootMargin:'0px 0px -30px 0px'});
+document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
+const nav=document.getElementById('nav');
+window.addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>50));
+document.querySelectorAll('.faq-q').forEach(q=>{
+  q.addEventListener('click',()=>{
+    const item=q.parentElement,a=item.querySelector('.faq-a'),wasOpen=item.classList.contains('open');
+    document.querySelectorAll('.faq-item').forEach(i=>{i.classList.remove('open');i.querySelector('.faq-a').style.maxHeight=null});
+    if(!wasOpen){item.classList.add('open');a.style.maxHeight=a.scrollHeight+'px'}
+  });
+});
+document.querySelectorAll('a[href^="#"]').forEach(a=>{
+  a.addEventListener('click',e=>{const t=document.querySelector(a.getAttribute('href'));if(t){e.preventDefault();t.scrollIntoView({behavior:'smooth',block:'start'})}});
+});
+</script>
+</body>
+</html>
